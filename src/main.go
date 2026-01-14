@@ -3,9 +3,13 @@ package main
 import (
 	"fmt"
 	"html/template"
+	"io/fs"
 	"log"
 	"net/http"
 	"sync"
+
+	// Import the content package to access embedded files
+	"counter-app/src/content"
 )
 
 // appState holds the counter and its mutex.
@@ -56,15 +60,27 @@ func (app *application) counterHandler(w http.ResponseWriter, r *http.Request) {
 func main() {
 	// Load templates from the correct path relative to src/
 	tmpl := template.Must(template.ParseFiles("templates/index.html"))
+	// Parse templates from the embedded filesystem for robustness.
+	templates, err := template.ParseFS(content.TemplatesFS, "templates/index.html")
+	if err != nil {
+		log.Fatalf("failed to parse templates: %v", err)
+	}
 
 	app := &application{
 		templates: tmpl,
+		templates: templates,
 		state:     &appState{},
 	}
 
 	// Serve static files
 	fs := http.FileServer(http.Dir("static"))
 	http.Handle("/static/", http.StripPrefix("/static/", fs))
+	// Serve static files from the embedded filesystem.
+	staticFS, err := fs.Sub(content.StaticFS, "static")
+	if err != nil {
+		log.Fatalf("failed to create static sub-filesystem: %v", err)
+	}
+	http.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.FS(staticFS))))
 
 	// Handle root path
 	http.HandleFunc("/", app.counterHandler)
