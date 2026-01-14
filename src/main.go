@@ -5,8 +5,6 @@ import (
 	"html/template"
 	"log"
 	"net/http"
-	"os"
-	"path/filepath"
 	"sync"
 )
 
@@ -22,6 +20,7 @@ type application struct {
 	state     *appState
 }
 
+// counterHandler handles HTTP requests.
 func (app *application) counterHandler(w http.ResponseWriter, r *http.Request) {
 	if r.URL.Path != "/" {
 		http.NotFound(w, r)
@@ -31,12 +30,14 @@ func (app *application) counterHandler(w http.ResponseWriter, r *http.Request) {
 	app.state.mu.Lock()
 	defer app.state.mu.Unlock()
 
+	// Handle form submissions
 	if r.Method == http.MethodPost {
 		if err := r.ParseForm(); err != nil {
 			log.Printf("Error parsing form: %v", err)
 			http.Error(w, "Bad Request", http.StatusBadRequest)
 			return
 		}
+
 		switch r.FormValue("action") {
 		case "increment":
 			app.state.counter++
@@ -53,23 +54,19 @@ func (app *application) counterHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func main() {
-	// Get working directory (project root if run correctly)
-	wd, err := os.Getwd()
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	templatesPath := filepath.Join(wd, "templates", "index.html")
-	staticPath := filepath.Join(wd, "static")
+	// Load templates from the correct path relative to src/
+	tmpl := template.Must(template.ParseFiles("templates/index.html"))
 
 	app := &application{
-		templates: template.Must(template.ParseFiles(templatesPath)),
+		templates: tmpl,
 		state:     &appState{},
 	}
 
-	fs := http.FileServer(http.Dir(staticPath))
+	// Serve static files
+	fs := http.FileServer(http.Dir("static"))
 	http.Handle("/static/", http.StripPrefix("/static/", fs))
 
+	// Handle root path
 	http.HandleFunc("/", app.counterHandler)
 
 	fmt.Println("Starting server on :8080")
