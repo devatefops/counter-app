@@ -5,6 +5,8 @@ import (
 	"html/template"
 	"log"
 	"net/http"
+	"os"
+	"path/filepath"
 	"sync"
 )
 
@@ -20,23 +22,19 @@ type application struct {
 	state     *appState
 }
 
-// counterHandler handles the HTTP requests to our web app.
 func (app *application) counterHandler(w http.ResponseWriter, r *http.Request) {
-	// We only want to handle requests for the root path.
 	if r.URL.Path != "/" {
 		http.NotFound(w, r)
 		return
 	}
 
 	app.state.mu.Lock()
+	defer app.state.mu.Unlock()
 
-	// Handle form submission for buttons
 	if r.Method == http.MethodPost {
 		if err := r.ParseForm(); err != nil {
-			// Log the error and send a bad request response.
 			log.Printf("Error parsing form: %v", err)
 			http.Error(w, "Bad Request", http.StatusBadRequest)
-			app.state.mu.Unlock()
 			return
 		}
 		switch r.FormValue("action") {
@@ -47,30 +45,33 @@ func (app *application) counterHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// It's good practice to release the lock before doing I/O (writing the response)
-	currentCount := app.state.counter
-	app.state.mu.Unlock()
-
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	err := app.templates.ExecuteTemplate(w, "index.html", currentCount)
-	if err != nil {
+	if err := app.templates.ExecuteTemplate(w, "index.html", app.state.counter); err != nil {
 		log.Printf("Error executing template: %v", err)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 	}
 }
 
 func main() {
-	// Initialize the application dependencies.
+	// Get working directory (project root if run correctly)
+	wd, err := os.Getwd()
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	templatesPath := filepath.Join(wd, "templates", "index.html")
+	staticPath := filepath.Join(wd, "static")
+
 	app := &application{
-		templates: template.Must(template.ParseFiles("../templates/index.html")),
+		templates: template.Must(template.ParseFiles(templatesPath)),
 		state:     &appState{},
 	}
 
-	// Serve static files (like CSS)
-	fs := http.FileServer(http.Dir("../static"))
+	fs := http.FileServer(http.Dir(staticPath))
 	http.Handle("/static/", http.StripPrefix("/static/", fs))
 
 	http.HandleFunc("/", app.counterHandler)
+
 	fmt.Println("Starting server on :8080")
 	log.Fatal(http.ListenAndServe(":8080", nil))
 }
