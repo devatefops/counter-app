@@ -15,16 +15,23 @@ pipeline {
 
     stages {
 
-        stage('Clone Repository on Target Host') {
+        stage('Clone Repository') {
             steps {
-                echo "Cloning repository ${params.GITHUB_REPO} on host ${params.TARGET_HOST}"
-                // 'target-host-ssh' should be the ID of your SSH private key credential in Jenkins for the TARGET_HOST.
-                // This step will use ssh-agent to forward your GitHub SSH key.
-                sshagent(credentials: ['target-host-ssh']) {
-                    sh """
-                        ssh -o StrictHostKeyChecking=no ${DEPLOY_USER}@${params.TARGET_HOST} \
-                        "git clone --branch ${params.BRANCH} ${params.GITHUB_REPO} ${WORKSPACE_DIR}/repo"
-                    """
+                echo "Cloning repository ${params.GITHUB_REPO} branch ${params.BRANCH}"
+                git branch: "${params.BRANCH}",
+                    url: "${params.GITHUB_REPO}"
+                   // credentialsId: 'github-ssh' // SSH credentials added in Jenkins
+            }
+        }
+
+        // Optional: Stage to create a file in repo (can be removed later)
+        stage('Add File (Optional)') {
+            steps {
+                script {
+                    // Create a file in the workspace
+                    writeFile file: 'newfile.txt', text: 'Hello from Jenkins pipeline!'
+
+                    echo "File newfile.txt created in workspace."
                 }
             }
         }
