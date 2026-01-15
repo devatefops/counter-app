@@ -20,16 +20,16 @@ pipeline {
     // Contains the sequential stages that make up the workflow.
     stages {
 
-        stage('Clone Repo on App Server') {
+        stage("Clean and Clone Repository") {
             steps {
                 echo "Cloning repo ${params.GITHUB_REPO} on host ${params.TARGET_HOST}"
                 // Use the sshagent wrapper to securely provide SSH credentials for the connection.
                 // 'server-app-ssh' is the ID of the credential stored in Jenkins.
                 sshagent(credentials: ['server-app-ssh']) {
                     sh """
-                        # Execute a git clone command on the remote TARGET_HOST.
+                        # Connect to the remote host and execute a script.
                         ssh -o StrictHostKeyChecking=no ${DEPLOY_USER}@${params.TARGET_HOST} \
-                        "git clone --branch ${params.BRANCH} ${params.GITHUB_REPO} ${WORKSPACE_DIR}/counter-app"
+                        "rm -rf ${WORKSPACE_DIR}/counter-app && git clone --branch ${params.BRANCH} ${params.GITHUB_REPO} ${WORKSPACE_DIR}/counter-app"
                     """
                 }
             }
