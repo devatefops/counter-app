@@ -23,7 +23,7 @@ pipeline {
                 sshagent(credentials: ['server-app-ssh']) {
                     sh """
                         ssh -o StrictHostKeyChecking=no ${DEPLOY_USER}@${params.TARGET_HOST} \
-                        "git clone --branch ${params.BRANCH} ${params.GITHUB_REPO} ${WORKSPACE_DIR}/repo"
+                        "git clone --branch ${params.BRANCH} ${params.GITHUB_REPO} ${WORKSPACE_DIR}/counter-app"
                     """
                 }
             }
