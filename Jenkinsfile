@@ -3,7 +3,7 @@ pipeline {
 
     // Parameters allow you to customize the build at runtime
     parameters {
-        string(name: 'GITHUB_REPO', defaultValue: 'git@github.com:devatefops/counter-app.git', description: 'GitHub repository URL')
+        string(name: 'GITHUB_REPO', defaultValue: 'https://github.com/devatefops/counter-app.git', description: 'GitHub repository URL')
         string(name: 'BRANCH', defaultValue: 'master', description: 'Branch to clone')
         string(name: 'TARGET_HOST', defaultValue: '13.63.34.25', description: 'App server IP') // optional for deploy later
     }
