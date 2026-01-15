@@ -15,15 +15,12 @@ pipeline {
     environment {
         DEPLOY_USER = "deploy"       // The user on the app server
         WORKSPACE_DIR = "workspace"  // Optional workspace subdirectory
-        // Define your Docker registry and image name
-        DOCKER_REGISTRY = "docker.io/devatefops" // e.g., docker.io/your-username
-        IMAGE_NAME = "counter-app"
     }
 
     // Contains the sequential stages that make up the workflow.
     stages {
 
-        stage("Checkout") {
+        stage("Clean and Clone Repository") {
             steps {
                 echo "Cloning repo ${params.GITHUB_REPO} on host ${params.TARGET_HOST}"
                 // Use the sshagent wrapper to securely provide SSH credentials for the connection.
@@ -38,60 +35,43 @@ pipeline {
             }
         }
 
-        stage('Run Tests') {
-            steps {
-                // This is a placeholder for your test commands.
-                // For a Go project, this would typically be 'go test ./...'.
-                echo "Running tests... (placeholder)"
-            }
-        }
-
         stage('Build Docker Image') {
             steps {
-                script {
-                    // Define the full image tag using the build number for versioning.
-                    def fullImageName = "${DOCKER_REGISTRY}/${IMAGE_NAME}:${BUILD_NUMBER}"
-                    echo "Building Docker image: ${fullImageName}"
-                    // Build the image on the Jenkins agent.
-                    docker.build(fullImageName, '.')
-                }
-            }
-        }
+                echo "Building Docker image on ${params.TARGET_HOST}"
+                sshagent(credentials: ['server-app-ssh']) {
+                    // A multi-line script is sent to the remote host using a 'heredoc' (<<'EOF').
+                    sh """
+                        ssh -o StrictHostKeyChecking=no ${DEPLOY_USER}@${params.TARGET_HOST} /bin/bash -s <<'EOF'
+                            # Navigate to the repository directory cloned in the previous stage
+                            cd ${WORKSPACE_DIR}/counter-app
 
-        stage('Push Docker Image') {
-            steps {
-                script {
-                    def fullImageName = "${DOCKER_REGISTRY}/${IMAGE_NAME}:${BUILD_NUMBER}"
-                    // Use a 'withDockerRegistry' block to handle authentication securely.
-                    // 'docker-registry-credentials' is the ID of your registry credentials in Jenkins.
-                    withDockerRegistry(credentialsId: 'docker-registry-credentials', toolName: 'docker') {
-                        echo "Pushing Docker image to registry..."
-                        // Push the image to your configured registry.
-                        docker.image(fullImageName).push()
-                    }
+                            # Build the Docker image, tagging it with the Jenkins build number
+                            # Using ${BUILD_NUMBER} is a great practice for versioning artifacts.
+                            echo "Building Docker image counter-app:${BUILD_NUMBER}"
+                            docker build -t counter-app:${BUILD_NUMBER} .
+EOF
+                    """
                 }
             }
         }
 
         stage('Deploy') {
             steps {
-                echo "Deploying container to ${params.TARGET_HOST}"
-                // Use sshagent to securely connect to the target deployment server.
+                echo "Deploying container on ${params.TARGET_HOST}"
                 sshagent(credentials: ['server-app-ssh']) {
+                    // Execute a deployment script on the remote host.
                     sh """
                         ssh -o StrictHostKeyChecking=no ${DEPLOY_USER}@${params.TARGET_HOST} /bin/bash -s <<'EOF'
-                            # Define the image to be pulled from the registry.
-                            IMAGE_TO_PULL="${DOCKER_REGISTRY}/${IMAGE_NAME}:${BUILD_NUMBER}"
-
-                            echo "Pulling latest image: \${IMAGE_TO_PULL}"
-                            docker pull \${IMAGE_TO_PULL}
-
+                            # Stop and remove the old container to prevent port conflicts
+                            # '|| true' ensures the command doesn't fail if the container doesn't exist.
                             echo "Stopping and removing existing container..."
-                            docker stop ${IMAGE_NAME}-container || true
-                            docker rm ${IMAGE_NAME}-container || true
+                            docker stop counter-app-container || true
+                            docker rm counter-app-container || true
 
-                            echo "Running new container..."
-                            docker run -d --name ${IMAGE_NAME}-container -p 8080:8080 \${IMAGE_TO_PULL}
+                            # Run the new container from the image built in the previous stage
+                            # -d runs the container in detached mode, --name gives it a predictable name.
+                            echo "Running new container from image counter-app:${BUILD_NUMBER}"
+                            docker run -d --name counter-app-container -p 8080:8080 counter-app:${BUILD_NUMBER}
 EOF
                     """
                 }
