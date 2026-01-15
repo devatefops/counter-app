@@ -18,9 +18,9 @@ pipeline {
         stage('Clone Repository on Target Host') {
             steps {
                 echo "Cloning repository ${params.GITHUB_REPO} on host ${params.TARGET_HOST}"
-                // 'target-host-ssh' should be the ID of your SSH private key credential in Jenkins for the TARGET_HOST.
+                // 'server-app-ssh' should be the ID of your SSH private key credential in Jenkins for the TARGET_HOST.
                 // This step will use ssh-agent to forward your GitHub SSH key.
-                sshagent(credentials: ['target-host-ssh']) {
+                sshagent(credentials: ['server-app-ssh']) {
                     sh """
                         ssh -o StrictHostKeyChecking=no ${DEPLOY_USER}@${params.TARGET_HOST} \
                         "git clone --branch ${params.BRANCH} ${params.GITHUB_REPO} ${WORKSPACE_DIR}/repo"
