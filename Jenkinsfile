@@ -19,7 +19,7 @@ pipeline {
             steps {
                 echo "Cloning repository ${params.GITHUB_REPO} branch ${params.BRANCH}"
                 git branch: "${params.BRANCH}",
-                    url: "${params.GITHUB_REPO}",
+                    url: "${params.GITHUB_REPO}"
                    // credentialsId: 'github-ssh' // SSH credentials added in Jenkins
             }
         }
