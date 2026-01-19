@@ -2,7 +2,7 @@ package main
 
 import (
 	"fmt"
-	"io/ioutil"
+	"io"
 	"log"
 	"net/http"
 	"os"
@@ -12,35 +12,47 @@ import (
 	gomail "gopkg.in/mail.v2"
 )
 
+// Config holds all configuration for the application.
+type Config struct {
+	CounterSvcHost   string
+	SMTPServer       string
+	SMTPPort         int
+	SMTPUser         string
+	SMTPPass         string
+	EmailTo          string
+	CheckInterval    time.Duration
+}
+
 func main() {
-	// Environment variables from docker-compose
-	counterSvcHost := os.Getenv("COUNTER_SVC_HOST")
-	smtpServer := os.Getenv("SMTP_HOST")
-	smtpPort := os.Getenv("SMTP_PORT")
-	smtpUser := os.Getenv("SMTP_USER")
-	smtpPass := os.Getenv("SMTP_PASS")
-	emailTo := os.Getenv("EMAIL_TO")
-	checkInterval := os.Getenv("CHECK_INTERVAL")
-
-	intervalDuration, err := time.ParseDuration(checkInterval)
-	if err != nil {
-		log.Fatalf("incorrect interval: %v", err)
-	}
-
-	smtpPortInt, err := strconv.Atoi(smtpPort)
+	smtpPortInt, err := strconv.Atoi(os.Getenv("SMTP_PORT"))
 	if err != nil {
 		log.Fatalf("invalid SMTP port: %v", err)
 	}
 
+	intervalDuration, err := time.ParseDuration(os.Getenv("CHECK_INTERVAL"))
+	if err != nil {
+		log.Fatalf("incorrect interval: %v", err)
+	}
+
+	cfg := Config{
+		CounterSvcHost: os.Getenv("COUNTER_SVC_HOST"),
+		SMTPServer:     os.Getenv("SMTP_HOST"),
+		SMTPPort:       smtpPortInt,
+		SMTPUser:       os.Getenv("SMTP_USER"),
+		SMTPPass:       os.Getenv("SMTP_PASS"),
+		EmailTo:        os.Getenv("EMAIL_TO"),
+		CheckInterval:  intervalDuration,
+	}
+
 	for {
-		checkCounterAndNotify(counterSvcHost, smtpServer, smtpPortInt, smtpUser, smtpPass, emailTo)
-		log.Printf("Check complete. Sleeping for %s...", checkInterval)
-		time.Sleep(intervalDuration)
+		checkCounterAndNotify(cfg)
+		log.Printf("Check complete. Sleeping for %s...", cfg.CheckInterval)
+		time.Sleep(cfg.CheckInterval)
 	}
 }
 
-func checkCounterAndNotify(counterHost, smtpServer string, smtpPort int, smtpUser, smtpPass, emailTo string) {
-	resp, err := http.Get("http://" + counterHost)
+func checkCounterAndNotify(cfg Config) {
+	resp, err := http.Get("http://" + cfg.CounterSvcHost)
 	if err != nil {
 		log.Printf("Failed to get counter value: %v", err)
 		return
@@ -52,7 +64,7 @@ func checkCounterAndNotify(counterHost, smtpServer string, smtpPort int, smtpUse
 		return
 	}
 
-	bodyBytes, err := ioutil.ReadAll(resp.Body)
+	bodyBytes, err := io.ReadAll(resp.Body)
 	if err != nil {
 		log.Printf("Failed to read response body: %v", err)
 		return
@@ -76,8 +88,8 @@ func checkCounterAndNotify(counterHost, smtpServer string, smtpPort int, smtpUse
 	message := gomail.NewMessage()
 
 	// Set email headers
-	message.SetHeader("From", smtpUser)
-	message.SetHeader("To", emailTo)
+	message.SetHeader("From", cfg.SMTPUser)
+	message.SetHeader("To", cfg.EmailTo)
 	message.SetHeader("Subject", "Counter Alert!")
 
 	// Set email body
@@ -89,7 +101,7 @@ func checkCounterAndNotify(counterHost, smtpServer string, smtpPort int, smtpUse
         </html>
     `)
 	// Set up the SMTP dialer
-	dialer := gomail.NewDialer(smtpServer, smtpPort, smtpUser, smtpPass)
+	dialer := gomail.NewDialer(cfg.SMTPServer, cfg.SMTPPort, cfg.SMTPUser, cfg.SMTPPass)
 
 	// Send the email
 	if err := dialer.DialAndSend(message); err != nil {
