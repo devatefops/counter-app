@@ -44,12 +44,17 @@ func main() {
 		CheckInterval:  intervalDuration,
 	}
 
+	// Send a welcome email on startup
+	sendWelcomeEmail(cfg)
+
 	for {
 		checkCounterAndNotify(cfg)
 		log.Printf("Check complete. Sleeping for %s...", cfg.CheckInterval)
 		time.Sleep(cfg.CheckInterval)
 	}
 }
+
+
 
 func checkCounterAndNotify(cfg Config) {
 	resp, err := http.Get("http://" + cfg.CounterSvcHost)
@@ -83,30 +88,41 @@ func checkCounterAndNotify(cfg Config) {
 		return
 	}
 
-	body := fmt.Sprintf("The counter has reached a value of %d.", count)
+	// Send notification email
+	subject := "Counter Alert!"
+	body := fmt.Sprintf("The counter has reached the target value of %d.", count)
+	if err := sendEmail(cfg, subject, body); err != nil {
+		log.Printf("Failed to send notification email: %v", err)
+	} else {
+		log.Println("Notification email sent successfully!")
+	}
+}
 
+func sendWelcomeEmail(cfg Config) {
+	log.Println("Sending welcome email...")
+	subject := "Notifier Service Started"
+	body := "Welcome! The notifier service is running and will alert you when the counter reaches 10."
+	if err := sendEmail(cfg, subject, body); err != nil {
+		// Log the error but don't stop the service
+		log.Printf("Failed to send welcome email: %v", err)
+	} else {
+		log.Println("Welcome email sent successfully!")
+	}
+}
+
+// sendEmail is a helper function to send emails.
+func sendEmail(cfg Config, subject, body string) error {
 	message := gomail.NewMessage()
-
-	// Set email headers
-	message.SetHeader("From", cfg.SMTPUser)
+	message.SetHeader("From", cfg.SMTPUser) // The "From" address can be anything, but SMTP user is a good default
 	message.SetHeader("To", cfg.EmailTo)
-	message.SetHeader("Subject", "Counter Alert!")
-
-	// Set email body
+	message.SetHeader("Subject", subject)
 	message.SetBody("text/html", `
         <html>
             <body>
-               `+body+`
+               <p>`+body+`</p>
             </body>
         </html>
     `)
-	// Set up the SMTP dialer
 	dialer := gomail.NewDialer(cfg.SMTPServer, cfg.SMTPPort, cfg.SMTPUser, cfg.SMTPPass)
-
-	// Send the email
-	if err := dialer.DialAndSend(message); err != nil {
-		log.Printf("Failed to send message: %v", err)
-		return
-	}
-	log.Println("Notification email sent successfully!")
+	return dialer.DialAndSend(message)
 }
