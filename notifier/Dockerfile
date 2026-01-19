@@ -11,7 +11,7 @@ WORKDIR /app
 COPY . .
 
 # Build the application statically
-RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o notifier .
+RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o notifier ./src
 
 # Final Stage
 FROM alpine:latest
