@@ -12,7 +12,7 @@ WORKDIR /app
 COPY . .
 
 # Build the Go app
-RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o /app/main ./src/main.go
+RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o /app/main ./cmd/main.go
 
 # Stage 2: Create the final image (using lightweight Alpine)
 FROM alpine:3.18

@@ -1,20 +1,22 @@
-# Build Stage
-FROM golang:1.24-alpine AS builder
+FROM golang:1.22-alpine AS builder
 
 WORKDIR /app
 
-# Copy go.mod and go.sum files to download dependencies
-# COPY go.mod go.sum ./
-# RUN go mod download
+RUN apk add --no-cache git
 
-# Copy the source code
+COPY go.mod go.sum ./
+RUN go mod download
+
 COPY . .
 
-# Build the application statically
-RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o /app/main ./src/main.go
-# Final Stage
-FROM alpine:latest
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
+    go build -o notifier ./cmd/notifier
+
+FROM alpine:3.19
 
 WORKDIR /app
-COPY --from=builder /app/main .
+RUN apk --no-cache add ca-certificates
+
+COPY --from=builder /app/notifier .
+
 CMD ["./notifier"]
