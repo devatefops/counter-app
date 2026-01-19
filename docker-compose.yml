@@ -1,0 +1,28 @@
+version: '3.8'
+
+services:
+  counter:
+    build:
+      context: ./counter
+      dockerfile: Dockerfile
+    ports:
+      - "8080:8080"
+    container_name: counter_service
+
+  notifier:
+    build:
+      context: ./notifier
+      dockerfile: Dockerfile
+    container_name: notifier_service
+    depends_on:
+      - counter
+    environment:
+      # The hostname 'counter' is automatically resolved by Docker's internal DNS
+      # to the IP address of the 'counter' service.
+      - COUNTER_SVC_HOST=counter:8080
+      - CHECK_INTERVAL=20s
+      - EMAIL_TO=devatefops@gmail.com
+      - SMTP_HOST=sandbox.smtp.mailtrap.io
+      - SMTP_PORT=587
+      - SMTP_USER=466bbf90ba1e16
+      - SMTP_PASS=73a8bbf12e51f2
