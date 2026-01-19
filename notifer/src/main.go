@@ -1,80 +1,84 @@
 package main
 
 import (
-	"database/sql"
 	"fmt"
+	"io/ioutil"
 	"log"
+	"net/http"
 	"os"
-	"strings"
+	"strconv"
 	"time"
 
 	gomail "gopkg.in/mail.v2"
-
-	_ "github.com/go-sql-driver/mysql"
 )
 
 func main() {
 	// Environment variables from docker-compose
-	dbHost := os.Getenv("MYSQL_HOST")
-	dbName := os.Getenv("MYSQL_DATABASE")
-	dbUser := os.Getenv("MYSQL_USER")
-	dbPass := os.Getenv("MYSQL_PASSWORD")
+	counterSvcHost := os.Getenv("COUNTER_SVC_HOST")
 	smtpServer := os.Getenv("SMTP_HOST")
 	smtpPort := os.Getenv("SMTP_PORT")
 	smtpUser := os.Getenv("SMTP_USER")
 	smtpPass := os.Getenv("SMTP_PASS")
 	emailTo := os.Getenv("EMAIL_TO")
 	checkInterval := os.Getenv("CHECK_INTERVAL")
+
 	intervalDuration, err := time.ParseDuration(checkInterval)
 	if err != nil {
 		log.Fatalf("incorrect interval: %v", err)
 	}
 
-	dsn := fmt.Sprintf("%s:%s@tcp(%s)/%s?parseTime=true", dbUser, dbPass, dbHost, dbName)
-	db, err := sql.Open("mysql", dsn)
+	smtpPortInt, err := strconv.Atoi(smtpPort)
 	if err != nil {
-		log.Fatalf("DB connection failed: %v", err)
+		log.Fatalf("invalid SMTP port: %v", err)
 	}
-	defer db.Close()
 
 	for {
-		sendSummary(db, smtpServer, smtpPort, smtpUser, smtpPass, emailTo)
-		log.Printf("Summary email sent. Sleeping %s ...\n", checkInterval)
-
+		checkCounterAndNotify(counterSvcHost, smtpServer, smtpPortInt, smtpUser, smtpPass, emailTo)
+		log.Printf("Check complete. Sleeping for %s...", checkInterval)
 		time.Sleep(intervalDuration)
 	}
 }
 
-func sendSummary(db *sql.DB, smtpServer, smtpPort, smtpUser, smtpPass, emailTo string) {
-	rows, err := db.Query("SELECT title FROM todos_todo WHERE isCompleted = 0")
+func checkCounterAndNotify(counterHost, smtpServer string, smtpPort int, smtpUser, smtpPass, emailTo string) {
+	resp, err := http.Get("http://" + counterHost)
 	if err != nil {
-		log.Printf("query error: %v", err)
+		log.Printf("Failed to get counter value: %v", err)
 		return
 	}
-	defer rows.Close()
+	defer resp.Body.Close()
 
-	var todos []string
-	for rows.Next() {
-		var title string
-		if err := rows.Scan(&title); err != nil {
-			continue
-		}
-		todos = append(todos, fmt.Sprintf("- %s", title))
-	}
-
-	if len(todos) == 0 {
-		log.Println("No pending todos — skipping email.")
+	if resp.StatusCode != http.StatusOK {
+		log.Printf("Counter service returned non-OK status: %s", resp.Status)
 		return
 	}
 
-	body := "Here are your pending tasks:<br><br>" + strings.Join(todos, "<br>")
+	bodyBytes, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		log.Printf("Failed to read response body: %v", err)
+		return
+	}
+
+	count, err := strconv.Atoi(string(bodyBytes))
+	if err != nil {
+		log.Printf("Failed to parse counter value: %v", err)
+		return
+	}
+
+	log.Printf("Current counter value is %d", count)
+
+	if count < 10 {
+		log.Println("Counter is less than 10, skipping email.")
+		return
+	}
+
+	body := fmt.Sprintf("The counter has reached a value of %d.", count)
 
 	message := gomail.NewMessage()
 
 	// Set email headers
 	message.SetHeader("From", smtpUser)
 	message.SetHeader("To", emailTo)
-	message.SetHeader("Subject", "Unfinished TODO List"+time.Now().String())
+	message.SetHeader("Subject", "Counter Alert!")
 
 	// Set email body
 	message.SetBody("text/html", `
@@ -85,11 +89,12 @@ func sendSummary(db *sql.DB, smtpServer, smtpPort, smtpUser, smtpPass, emailTo s
         </html>
     `)
 	// Set up the SMTP dialer
-	dialer := gomail.NewDialer(smtpServer, 587, smtpUser, smtpPass)
+	dialer := gomail.NewDialer(smtpServer, smtpPort, smtpUser, smtpPass)
 
 	// Send the email
 	if err := dialer.DialAndSend(message); err != nil {
 		log.Printf("Failed to send message: %v", err)
 		return
 	}
+	log.Println("Notification email sent successfully!")
 }
