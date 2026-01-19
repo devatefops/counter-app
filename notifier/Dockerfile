@@ -1,29 +1,28 @@
 # -------- Build Stage --------
 FROM golang:1.22-alpine AS builder
 
+# Set working directory inside container
 WORKDIR /app
 
-# Install Git (needed for Go modules)
+# Install git (needed for some Go modules)
 RUN apk add --no-cache git
 
-# Copy the entire cmd folder (contains main.go, go.mod, go.sum)
-COPY cmd ./cmd
-
-# Switch to the cmd directory
-WORKDIR /app/cmd
-
-# Download module dependencies
+# Copy go.mod and go.sum first for caching
+COPY go.mod go.sum ./
 RUN go mod download
 
-# Build the Go binary
-RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /app/notifier
+# Copy the rest of the source code
+COPY . .
+
+# Build the Go binary from the cmd package
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /app/notifier ./cmd
 
 # -------- Runtime Stage --------
 FROM alpine:3.19
 
 WORKDIR /app
 
-# Install CA certificates for HTTPS requests
+# Add CA certificates (needed for HTTPS requests)
 RUN apk --no-cache add ca-certificates
 
 # Copy the binary from the builder stage
