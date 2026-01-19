@@ -78,8 +78,8 @@ func checkCounterAndNotify(cfg Config) {
 
 	log.Printf("Current counter value is %d", count)
 
-	if count < 10 {
-		log.Println("Counter is less than 10, skipping email.")
+	if count != 10 {
+		log.Printf("Counter is not 10 (value: %d), skipping email.", count)
 		return
 	}
 
