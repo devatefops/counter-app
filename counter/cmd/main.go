@@ -53,6 +53,16 @@ func (app *application) counterHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// apiCounterHandler provides the counter value as a JSON response.
+func (app *application) apiCounterHandler(w http.ResponseWriter, r *http.Request) {
+	app.state.mu.Lock()
+	defer app.state.mu.Unlock()
+
+	w.Header().Set("Content-Type", "application/json")
+	// The response format `{"value": N}` matches what the notifier expects.
+	fmt.Fprintf(w, `{"value": %d}`, app.state.counter)
+}
+
 func main() {
 	// Load templates from the correct path relative to src/
 	tmpl := template.Must(template.ParseFiles("templates/index.html"))
@@ -68,6 +78,9 @@ func main() {
 
 	// Handle root path
 	http.HandleFunc("/", app.counterHandler)
+
+	// Handle API path for the notifier
+	http.HandleFunc("/api/counter", app.apiCounterHandler)
 
 	fmt.Println("Starting server on :8080")
 	log.Fatal(http.ListenAndServe(":8080", nil))
