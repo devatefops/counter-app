@@ -19,7 +19,7 @@ services:
     environment:
       # The hostname 'counter' is automatically resolved by Docker's internal DNS
       # to the IP address of the 'counter' service.
-      - COUNTER_SVC_HOST=counter:8080
+      - COUNTER_SVC_HOST=counter_service:8080
       - CHECK_INTERVAL=10s
       - EMAIL_TO=${EMAIL_TO}
       - SMTP_HOST=${SMTP_HOST}

@@ -56,7 +56,7 @@ func main() {
 
 
 func checkCounterAndNotify(cfg Config) {
-	resp, err := http.Get("http://" + cfg.CounterSvcHost)
+	resp, err := http.Get("http://" + cfg.CounterSvcHost + "/api/counter")
 	if err != nil {
 		log.Printf("Failed to get counter value: %v", err)
 		return
