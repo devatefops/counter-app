@@ -1,8 +1,8 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
-	"io"
 	"log"
 	"net/http"
 	"net/smtp"
@@ -13,39 +13,61 @@ import (
 
 // Config holds all configuration for the application.
 type Config struct {
-	CounterSvcHost   string
-	SMTPServer       string
-	SMTPPort         int
-	SMTPUser         string
-	SMTPPass         string
-	EmailTo          string
-	CheckInterval    time.Duration
+	CounterSvcHost string
+	SMTPServer     string
+	SMTPPort       int
+	SMTPUser       string
+	SMTPPass       string
+	EmailTo        string
+	CheckInterval  time.Duration
+}
+
+// CounterResponse matches the counter_service API response
+type CounterResponse struct {
+	Value int `json:"value"`
 }
 
 func main() {
-	smtpPortInt, err := strconv.Atoi(os.Getenv("SMTP_PORT"))
+	// Validate and load SMTP port
+	smtpPortStr := os.Getenv("SMTP_PORT")
+	if smtpPortStr == "" {
+		log.Fatal("SMTP_PORT is not set")
+	}
+	smtpPort, err := strconv.Atoi(smtpPortStr)
 	if err != nil {
 		log.Fatalf("invalid SMTP port: %v", err)
 	}
 
-	intervalDuration, err := time.ParseDuration(os.Getenv("CHECK_INTERVAL"))
+	// Validate and load check interval
+	intervalStr := os.Getenv("CHECK_INTERVAL")
+	if intervalStr == "" {
+		log.Fatal("CHECK_INTERVAL is not set")
+	}
+	checkInterval, err := time.ParseDuration(intervalStr)
 	if err != nil {
-		log.Fatalf("incorrect interval: %v", err)
+		log.Fatalf("invalid CHECK_INTERVAL: %v", err)
 	}
 
 	cfg := Config{
 		CounterSvcHost: os.Getenv("COUNTER_SVC_HOST"),
 		SMTPServer:     os.Getenv("SMTP_HOST"),
-		SMTPPort:       smtpPortInt,
+		SMTPPort:       smtpPort,
 		SMTPUser:       os.Getenv("SMTP_USER"),
 		SMTPPass:       os.Getenv("SMTP_PASS"),
 		EmailTo:        os.Getenv("EMAIL_TO"),
-		CheckInterval:  intervalDuration,
+		CheckInterval:  checkInterval,
+	}
+
+	// Basic config validation
+	if cfg.CounterSvcHost == "" || cfg.SMTPServer == "" || cfg.SMTPUser == "" ||
+		cfg.SMTPPass == "" || cfg.EmailTo == "" {
+		log.Fatal("One or more required environment variables are missing")
 	}
 
 	// Send a welcome email on startup
 	sendWelcomeEmail(cfg)
 
+	// Periodic check loop
 	for {
 		checkCounterAndNotify(cfg)
 		log.Printf("Check complete. Sleeping for %s...", cfg.CheckInterval)
@@ -53,12 +75,17 @@ func main() {
 	}
 }
 
-
-
+// checkCounterAndNotify fetches the counter value and sends an email if it reaches 10
 func checkCounterAndNotify(cfg Config) {
-	resp, err := http.Get("http://" + cfg.CounterSvcHost + "/api/counter")
+	url := fmt.Sprintf("http://%s/api/counter", cfg.CounterSvcHost)
+
+	client := http.Client{
+		Timeout: 5 * time.Second,
+	}
+
+	resp, err := client.Get(url)
 	if err != nil {
-		log.Printf("Failed to get counter value: %v", err)
+		log.Printf("Failed to call counter service: %v", err)
 		return
 	}
 	defer resp.Body.Close()
@@ -68,18 +95,13 @@ func checkCounterAndNotify(cfg Config) {
 		return
 	}
 
-	bodyBytes, err := io.ReadAll(resp.Body)
-	if err != nil {
-		log.Printf("Failed to read response body: %v", err)
+	var counterResp CounterResponse
+	if err := json.NewDecoder(resp.Body).Decode(&counterResp); err != nil {
+		log.Printf("Failed to decode counter response: %v", err)
 		return
 	}
 
-	count, err := strconv.Atoi(string(bodyBytes))
-	if err != nil {
-		log.Printf("Failed to parse counter value: %v", err)
-		return
-	}
-
+	count := counterResp.Value
 	log.Printf("Current counter value is %d", count)
 
 	if count != 10 {
@@ -87,9 +109,9 @@ func checkCounterAndNotify(cfg Config) {
 		return
 	}
 
-	// Send notification email
 	subject := "Counter Alert!"
 	body := fmt.Sprintf("The counter has reached the target value of %d.", count)
+
 	if err := sendEmail(cfg, subject, body); err != nil {
 		log.Printf("Failed to send notification email: %v", err)
 	} else {
@@ -97,35 +119,33 @@ func checkCounterAndNotify(cfg Config) {
 	}
 }
 
+// sendWelcomeEmail sends an email when the service starts
 func sendWelcomeEmail(cfg Config) {
 	log.Println("Sending welcome email...")
 	subject := "Notifier Service Started"
 	body := "Welcome! The notifier service is running and will alert you when the counter reaches 10."
+
 	if err := sendEmail(cfg, subject, body); err != nil {
-		// Log the error but don't stop the service
 		log.Printf("Failed to send welcome email: %v", err)
 	} else {
 		log.Println("Welcome email sent successfully!")
 	}
 }
 
-// sendEmail is a helper function to send emails.
+// sendEmail sends an email using SMTP
 func sendEmail(cfg Config, subject, body string) error {
-	// Set up authentication information.
 	auth := smtp.PlainAuth("", cfg.SMTPUser, cfg.SMTPPass, cfg.SMTPServer)
 
-	// Construct the email headers and body.
 	to := []string{cfg.EmailTo}
-	// The message needs to be in RFC 822 format.
-	// Headers are separated from the body by a blank line.
-	msg := []byte("To: " + cfg.EmailTo + "\r\n" +
-		"From: " + cfg.SMTPUser + "\r\n" + // Using SMTPUser as the From address
-		"Subject: " + subject + "\r\n" +
-		"Content-Type: text/html; charset=UTF-8\r\n" +
-		"\r\n" +
-		"<html><body><p>" + body + "</p></body></html>\r\n")
+	msg := []byte(
+		"To: " + cfg.EmailTo + "\r\n" +
+			"From: " + cfg.SMTPUser + "\r\n" +
+			"Subject: " + subject + "\r\n" +
+			"Content-Type: text/html; charset=UTF-8\r\n" +
+			"\r\n" +
+			"<html><body><p>" + body + "</p></body></html>\r\n",
+	)
 
-	// Send the email.
 	addr := fmt.Sprintf("%s:%d", cfg.SMTPServer, cfg.SMTPPort)
 	return smtp.SendMail(addr, auth, cfg.SMTPUser, to, msg)
 }
