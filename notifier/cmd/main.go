@@ -5,11 +5,10 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"net/smtp"
 	"os"
 	"strconv"
 	"time"
-
-	gomail "gopkg.in/mail.v2"
 )
 
 // Config holds all configuration for the application.
@@ -112,17 +111,21 @@ func sendWelcomeEmail(cfg Config) {
 
 // sendEmail is a helper function to send emails.
 func sendEmail(cfg Config, subject, body string) error {
-	message := gomail.NewMessage()
-	message.SetHeader("From", cfg.SMTPUser) // The "From" address can be anything, but SMTP user is a good default
-	message.SetHeader("To", cfg.EmailTo)
-	message.SetHeader("Subject", subject)
-	message.SetBody("text/html", `
-        <html>
-            <body>
-               <p>`+body+`</p>
-            </body>
-        </html>
-    `)
-	dialer := gomail.NewDialer(cfg.SMTPServer, cfg.SMTPPort, cfg.SMTPUser, cfg.SMTPPass)
-	return dialer.DialAndSend(message)
+	// Set up authentication information.
+	auth := smtp.PlainAuth("", cfg.SMTPUser, cfg.SMTPPass, cfg.SMTPServer)
+
+	// Construct the email headers and body.
+	to := []string{cfg.EmailTo}
+	// The message needs to be in RFC 822 format.
+	// Headers are separated from the body by a blank line.
+	msg := []byte("To: " + cfg.EmailTo + "\r\n" +
+		"From: " + cfg.SMTPUser + "\r\n" + // Using SMTPUser as the From address
+		"Subject: " + subject + "\r\n" +
+		"Content-Type: text/html; charset=UTF-8\r\n" +
+		"\r\n" +
+		"<html><body><p>" + body + "</p></body></html>\r\n")
+
+	// Send the email.
+	addr := fmt.Sprintf("%s:%d", cfg.SMTPServer, cfg.SMTPPort)
+	return smtp.SendMail(addr, auth, cfg.SMTPUser, to, msg)
 }

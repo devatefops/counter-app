@@ -20,9 +20,9 @@ services:
       # The hostname 'counter' is automatically resolved by Docker's internal DNS
       # to the IP address of the 'counter' service.
       - COUNTER_SVC_HOST=counter:8080
-      - CHECK_INTERVAL=20s
-      - EMAIL_TO=devatefops@gmail.com
-      - SMTP_HOST=sandbox.smtp.mailtrap.io
-      - SMTP_PORT=587
-      - SMTP_USER=925aa3ed931db7
-      - SMTP_PASS=1be6cd2362c1bd
+      - CHECK_INTERVAL=10s
+      - EMAIL_TO=${EMAIL_TO}
+      - SMTP_HOST=${SMTP_HOST}
+      - SMTP_PORT=${SMTP_PORT}
+      - SMTP_USER=${SMTP_USER}
+      - SMTP_PASS=${SMTP_PASS}
