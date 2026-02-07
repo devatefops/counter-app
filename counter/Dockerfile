@@ -12,7 +12,7 @@ WORKDIR /app
 COPY . .
 
 # Build the Go app
-RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o /app/main ./cmd/main.go
+RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o /app/counter ./cmd/main.go
 
 # Stage 2: Create the final image (using lightweight Alpine)
 FROM alpine:3.18
@@ -21,7 +21,7 @@ FROM alpine:3.18
 WORKDIR /app
 
 # Copy binary from builder
-COPY --from=builder /app/main .
+COPY --from=builder /app/counter .
 
 # Copy templates and static files
 COPY --from=builder /app/templates ./templates
@@ -31,4 +31,4 @@ COPY --from=builder /app/static ./static
 EXPOSE 8080
 
 # Run the app
-CMD ["./main"]
+CMD ["./counter"]
