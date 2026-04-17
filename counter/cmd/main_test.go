@@ -1,16 +1,18 @@
 package main
 
 import (
+	"html/template"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"strings"
 	"testing"
-	"html/template"   
 )
 
 func setupApp() *application {
-	tmpl := template.Must(template.ParseFiles("templates/index.html"))
+	tmpl := template.Must(template.New("test").Parse(`
+		<html><body>{{.}}</body></html>
+	`))
 
 	return &application{
 		templates: tmpl,
