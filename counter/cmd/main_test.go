@@ -6,6 +6,7 @@ import (
 	"net/url"
 	"strings"
 	"testing"
+	"html/template"   
 )
 
 func setupApp() *application {
