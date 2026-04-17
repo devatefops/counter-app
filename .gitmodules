@@ -1,0 +1,6 @@
+[submodule "counter-svc"]
+	path = counter-svc
+	url = https://github.com/devatefops/counter-svc.git
+[submodule "notifier-svc"]
+	path = notifier-svc
+	url = https://github.com/devatefops/notifier-svc.git
