@@ -9,17 +9,17 @@ import (
 	"testing"
 )
 
-func setupApp() *application {
-	// ✅ inline template (NO filesystem dependency)
-	tmpl := template.Must(template.New("test").Parse(`
-		<html><body>{{.}}</body></html>
-	`))
+// func setupApp() *application {
+// 	// ✅ inline template (NO filesystem dependency)
+// 	tmpl := template.Must(template.New("test").Parse(`
+// 		<html><body>{{.}}</body></html>
+// 	`))
 
-	return &application{
-		templates: tmpl,
-		state:     &appState{},
-	}
-}
+// 	return &application{
+// 		templates: tmpl,
+// 		state:     &appState{},
+// 	}
+// }
 
 func TestCounterHandler_Get(t *testing.T) {
 	app := setupApp()
