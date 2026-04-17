@@ -1,129 +1,155 @@
-# Counter Service
+# Counter Platform
 
-A simple Go web application that maintains a counter and exposes both a UI and a JSON API.
+A simple event-driven system built with Go, consisting of two services:
 
----
+* **Counter Service** → maintains a counter and exposes an API
+* **Notifier Service** → consumes the counter value and reacts to changes
 
-## 🚀 Features
-
-* Increment and reset counter via web UI
-* Thread-safe state using mutex
-* JSON API endpoint for integrations
-* Designed for CI/CD and containerization
+This project demonstrates basic microservices design, testing, and CI/CD readiness.
 
 ---
 
-## 🏗️ Project Structure
+## 🏗️ Architecture
 
+```id="7b8j3p"
++-------------------+        HTTP        +--------------------+
+|  Counter Service  |  <-------------->  |  Notifier Service  |
+|                   |                    |                    |
+| - Web UI          |                    | - Polls API        |
+| - REST API        |                    | - Reacts to value  |
+| - In-memory state |                    |                    |
++-------------------+                    +--------------------+
 ```
+
+---
+
+## 📦 Project Structure
+
+```id="v8qv9c"
 .
-├── cmd/
-│   ├── main.go
-│   └── main_test.go
-├── templates/
-│   └── index.html
-├── static/
-├── go.mod
+├── counter-service/
+│   ├── cmd/
+│   ├── templates/
+│   └── go.mod
+│
+├── notifier-service/
+│   ├── cmd/
+│   └── go.mod
+│
+└── README.md
 ```
+
+---
+
+## 🚀 Services
+
+### 1. Counter Service
+
+* Web UI to increment/reset counter
+* Thread-safe using mutex
+* Exposes API:
+
+```id="hcbk0q"
+GET /api/counter
+```
+
+Response:
+
+```json id="v5gh9m"
+{ "value": 3 }
+```
+
+---
+
+### 2. Notifier Service
+
+* Periodically calls counter API
+* Detects changes in value
+* Can be extended to:
+
+  * send logs
+  * trigger alerts
+  * integrate with external systems
 
 ---
 
 ## ▶️ Run Locally
 
-### 1. Install Go (>= 1.22)
+### Start Counter Service
 
-### 2. Run the app
-
-```bash
+```bash id="6bsk9w"
+cd counter-service
 go run ./cmd
 ```
 
-App will start on:
+Runs on:
 
-```
+```id="rqv1ps"
 http://localhost:8080
+```
+
+---
+
+### Start Notifier Service
+
+```bash id="p9x4tb"
+cd notifier-service
+go run ./cmd
 ```
 
 ---
 
 ## 🧪 Run Tests
 
-```bash
+From each service:
+
+```bash id="6f0h5z"
 go test -race -v ./...
 ```
 
 ---
 
-## 🌐 API Endpoints
+## 🐳 Docker (optional)
 
-### GET `/`
+Each service can be containerized independently:
 
-* Returns HTML page with counter
-
-### POST `/`
-
-* Form actions:
-
-  * `increment`
-  * `reset`
-
-### GET `/api/counter`
-
-```json
-{
-  "value": 3
-}
+```bash id="j4j9r8"
+docker build -t counter-service ./counter-service
+docker build -t notifier-service ./notifier-service
 ```
 
 ---
 
-## 🐳 Run with Docker
+## ⚙️ CI/CD
 
-### Build image
+Each service is tested independently using GitHub Actions:
 
-```bash
-docker build -t counter-service .
-```
+* Runs unit tests
+* Ensures code quality before build
+* Can be extended to:
 
-### Run container
-
-```bash
-docker run -p 8080:8080 counter-service
-```
+  * build Docker images
+  * push to registry
+  * deploy to Kubernetes
 
 ---
 
-## ⚙️ CI/CD (GitHub Actions)
+## 🧠 Design Principles
 
-Example workflow:
-
-```yaml
-- uses: actions/checkout@v4
-
-- uses: actions/setup-go@v5
-  with:
-    go-version: '1.22'
-
-- run: go test -race ./...
-```
-
----
-
-## 🧠 Design Notes
-
-* Uses `net/http` (no external frameworks)
-* Templates are injected → easy to test
-* Unit tests avoid filesystem dependency
-* Safe for concurrent access
+* Separation of concerns (each service has a single responsibility)
+* Stateless communication via HTTP
+* Testable architecture (no filesystem dependency in tests)
+* Minimal dependencies (standard library)
 
 ---
 
 ## 🔮 Future Improvements
 
-* Add persistent storage (Redis / DB)
-* Add metrics (Prometheus)
-* Add authentication
-* Kubernetes deployment
+* Add message broker (Kafka / RabbitMQ)
+* Replace polling with event-driven communication
+* Add observability (Prometheus + Grafana)
+* Deploy using Kubernetes
+* Add distributed tracing
 
 ---
 
